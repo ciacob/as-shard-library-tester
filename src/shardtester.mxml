@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	creationComplete="onCreate()">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+
+	<fx:Script>
+		<![CDATA[
+			
+			private var tester:ShardTest;
+			
+			private function onCreate():void {
+				tester = new ShardTest();
+				tester.run();
+			}
+		]]>
+	</fx:Script>
+
+	<s:Label id="statusLabel" text="See console for test results..." fontSize="14"
+		verticalCenter="0" horizontalCenter="0"
+		top="10" left="10"/>
+</s:WindowedApplication>
