@@ -9,6 +9,10 @@ package {
 
         import com.github.ciacob.asshardlibrary.Shard;
         import com.github.ciacob.asshardlibrary.IShard;
+        import flash.utils.ByteArray;
+        import com.github.ciacob.asshardlibrary.AbstractShard;
+        import com.github.ciacob.asshardlibrary.CustomShard;
+        import flash.utils.getQualifiedClassName;
 
         public function ShardTest() {
         }
@@ -99,6 +103,9 @@ package {
             testQueries();
             testTraversal();
             testFind();
+            testSerialization();
+            testSubclassRoundTrip();
+            testDeterministicSerialization();
 
             trace('--------------------');
             trace('Results:');
@@ -421,6 +428,104 @@ package {
                 return matches.length;
             }, 1);
         }
+
+        private function testSerialization():void {
+            const shard:Shard = new Shard();
+            shard.$set("type", "test");
+            shard.addChild(new Shard());
+
+            test("[toSerialized] returns ByteArray", function():* {
+                return shard.toSerialized() is ByteArray;
+            }, true);
+
+            test("[toSerialized] ByteArray is non-empty", function():* {
+                const b:ByteArray = shard.toSerialized();
+                return b.length > 0;
+            }, true);
+
+            const original:Shard = new Shard();
+            original.$set("name", "original");
+            const child:Shard = new Shard();
+            child.$set("role", "child");
+            original.addChild(child);
+
+            trace('------ Original Shard ---');
+            (original as AbstractShard).dump();
+
+            const serialized:ByteArray = original.toSerialized();
+            const copy:Shard = new Shard(); // empty target
+            copy.importFrom(serialized); // now populated
+
+            trace('------ Copy Shard ---');
+            (copy as AbstractShard).dump();
+
+            test("[importFrom] Round-trip: isSame(original, copy)", function():* {
+                return original.isSame(copy);
+            }, true);
+        }
+
+        private function testSubclassRoundTrip():void {
+            const root:Shard = new Shard();
+            root.$set("origin", "root");
+
+            const custom:CustomShard = new CustomShard();
+            custom.$set("note", "I'm a subclass");
+            root.addChild(custom);
+
+            trace("------ Subclass Original Shard ---");
+            (root as AbstractShard).dump();
+
+            const bytes:ByteArray = root.toSerialized();
+            const copy:Shard = new Shard();
+            copy.importFrom(bytes, null, "oob_fallback");
+
+            trace("------ Subclass Copy Shard ---");
+            (copy as AbstractShard).dump();
+
+            test("[Subclass round-trip] structure preserved", function():* {
+                return copy.isSame(root);
+            }, true);
+
+            test("[Subclass round-trip] child class is CustomShard", function():* {
+                return getQualifiedClassName(copy.firstChild) == "com.github.ciacob.asshardlibrary::CustomShard";
+            }, true);
+        }
+
+        private function testDeterministicSerialization():void {
+            const original:Shard = new Shard();
+            original.$set("foo", 42);
+            original.$set("bar", true);
+
+            const child:Shard = new Shard();
+            child.$set("baz", "ok");
+            original.addChild(child);
+
+            const clone:Shard = original.clone(true) as Shard;
+
+            const a:ByteArray = original.toSerialized();
+            const b:ByteArray = clone.toSerialized();
+
+            // Compare lengths first
+            const equal:Boolean = (a.length === b.length);
+            var binaryMatch:Boolean = equal;
+
+            // Compare byte-for-byte
+            if (equal) {
+                a.position = 0;
+                b.position = 0;
+                while (a.bytesAvailable && b.bytesAvailable) {
+                    if (a.readByte() !== b.readByte()) {
+                        binaryMatch = false;
+                        break;
+                    }
+                }
+            }
+
+            test("[Determinism] clone and original serialize identically", function():* {
+                return binaryMatch;
+            }, true);
+        }
+
 
     }
 }
