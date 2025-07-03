@@ -12,6 +12,7 @@ package {
         import flash.utils.ByteArray;
         import com.github.ciacob.asshardlibrary.AbstractShard;
         import com.github.ciacob.asshardlibrary.CustomShard;
+        import com.github.ciacob.asshardlibrary.ReadOnlyShard;
         import flash.utils.getQualifiedClassName;
 
         public function ShardTest() {
@@ -109,6 +110,7 @@ package {
             testJsonExportStructure();
             testJsonImportStructure();
             testJsonRoundTrip();
+            testReadOnlyShardBehavior()
 
             trace('--------------------');
             trace('Results:');
@@ -593,6 +595,46 @@ package {
             test("[JSON Round-trip] copy.isSame(original)", function():* {
                 return copy.isSame(original);
             }, true);
+        }
+
+        private function testReadOnlyShardBehavior():void {
+            const readonly:ReadOnlyShard = new ReadOnlyShard({foo: "bar", number: 42});
+
+            test("[ReadOnly] Property foo exists", function():* {
+                return readonly.has("foo");
+            }, true);
+
+            test("[ReadOnly] Property number = 42", function():* {
+                return readonly.$get("number");
+            }, 42);
+
+            // Try changing content
+            readonly.$set("foo", "baz");
+            test("[ReadOnly] Property foo unchanged after $set", function():* {
+                return readonly.$get("foo");
+            }, "bar");
+
+            // Try deleting content
+            readonly.$delete("foo");
+            test("[ReadOnly] Property foo still exists after $delete", function():* {
+                return readonly.has("foo");
+            }, true);
+
+            // Try addChild
+            const child:Shard = new Shard();
+            readonly.addChild(child);
+            test("[ReadOnly] Should not allow children", function():* {
+                return readonly.findNumChildren();
+            }, 0);
+
+            // Try importFrom
+            const clone:Shard = new Shard();
+            clone.$set("copy", true);
+            const bytes:ByteArray = clone.toSerialized();
+            readonly.importFrom(bytes);
+            test("[ReadOnly] Should not accept importFrom", function():* {
+                return readonly.has("copy");
+            }, false);
         }
 
 
