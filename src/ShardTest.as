@@ -106,6 +106,9 @@ package {
             testSerialization();
             testSubclassRoundTrip();
             testDeterministicSerialization();
+            testJsonExportStructure();
+            testJsonImportStructure();
+            testJsonRoundTrip();
 
             trace('--------------------');
             trace('Results:');
@@ -523,6 +526,72 @@ package {
 
             test("[Determinism] clone and original serialize identically", function():* {
                 return binaryMatch;
+            }, true);
+        }
+
+        private function testJsonExportStructure():void {
+            const root:Shard = new Shard();
+            root.$set("type", "root");
+
+            const child:Shard = new Shard();
+            child.$set("name", "child1");
+            root.addChild(child);
+
+            const json:String = root.exportTo("JSON");
+            const parsed:Object = JSON.parse(json);
+
+            test("[JSON Export] fqn present", function():* {
+                return typeof parsed.fqn === "string" && parsed.fqn.length > 0;
+            }, true);
+
+            test("[JSON Export] root content correct", function():* {
+                return parsed.content.type === "root";
+            }, true);
+
+            test("[JSON Export] child exists", function():* {
+                return parsed.children.length === 1 && parsed.children[0].content.name === "child1";
+            }, true);
+        }
+
+        private function testJsonImportStructure():void {
+            const json:String = JSON.stringify({fqn: "com.github.ciacob.asshardlibrary.Shard",
+                    intrinsic: {isFlat: false},
+                    content: {category: "imported"},
+                    children: [
+                    {
+                            fqn: "com.github.ciacob.asshardlibrary.Shard",
+                            intrinsic: {isFlat: false},
+                            content: {label: "childNode"},
+                            children: []
+                        }
+                    ]});
+
+            const shard:Shard = new Shard();
+            shard.importFrom(json, "JSON");
+
+            test("[JSON Import] imported content exists", function():* {
+                return shard.$get("category");
+            }, "imported");
+
+            test("[JSON Import] imported child exists", function():* {
+                return shard.firstChild !== null && shard.firstChild.$get("label") === "childNode";
+            }, true);
+        }
+
+        private function testJsonRoundTrip():void {
+            const original:Shard = new Shard();
+            original.$set("version", 3);
+            const child:Shard = new Shard();
+            child.$set("note", "descendant");
+            original.addChild(child);
+
+            const json:String = original.exportTo("JSON");
+
+            const copy:Shard = new Shard();
+            copy.importFrom(json, "JSON");
+
+            test("[JSON Round-trip] copy.isSame(original)", function():* {
+                return copy.isSame(original);
             }, true);
         }
 
